@@ -73,99 +73,115 @@ async function delay(ms) {
 // ^ PROVIDED CODE ^ DO NOT REMOVE
 
 // This async function controls the flow of the race, add the logic and error handling
+// This async function controls the flow of the race, adding logic and error handling
 async function handleCreateRace() {
-	if (!store.player || !store.track) {
-		alert('Please select racer and track')
-		return
-	}
-
+	let track = { name: "Monza" }  
+  
 	try {
-		createRace(store.player.id, store.track.id).then(res => {
-			const race = res
-			store.race_id = race.ID
-			renderAt('#race', renderRaceStartView(race.Track))
-			return runCountdown()
-		})
-			.then(() => startRace(store.race_id))
-			.then(() => runRace(store.race_id))
-			.then(res => renderAt('#race', resultsView(res.positions)))
-	} catch(error) {
-		console.log(error)
+		// Get player_id and track_id from the store
+	  if (!store.track_id){
+		alert("Please select a track to proceed to the race"); 
+		return;
+	  }
+  
+	  if (!store.player_id){
+		alert("Please select a driver to proceed to the race");
+		return;
+	  }
+  
+	  // Create Race uses a fetch, so use await to get the result 
+	  // http://localhost:8080/api/races
+		const race = await createRace(store.player_id, store.track_id);  // Invoke the API call to create the race, then save the result
+  
+	  console.log(`Race Created: Track: ${race.Track}, Race ID: ${race.ID}`);
+  
+	  // TODO: render starting UI
+		renderAt('#race', renderRaceStartView(race.Track));
+  
+		// Update the store with the race id
+	  store.race_id = race.ID;
+  
+		// The race has been created, now start the countdown
+		// call the async function runCountdown
+	  await runCountdown()
+  
+		// Call the async function startRace
+	  await startRace(store.race_id);
+  
+		// Call the function runRace
+	  runRace(store.race_id);
+  
+	} catch (error) {
+	  console.log(`handleCreateRace Error: ${error}`);
 	}
-}
-
-function runRace(raceID) {
-	return new Promise(resolve => {
-		const id = setInterval(() => {
-			getRace(raceID)
-				.then(res => {
-					if (res.status !== 'finished') {
-						renderAt('#leaderBoard', raceProgress(res.positions))
-					} else {
-						clearInterval(id)
-						resolve(res)
-					}
-				})
-		}, 500)
-	})
-	// remember to add error handling for the Promise -- error handling is done in try-catch block above
-}
-
-async function runCountdown() {
+  }
+  
+  // Function to run the race with provided raceID
+  function runRace(raceID) {
 	try {
-		// wait for the DOM to load
-		await delay(1000)
-		let timer = 3
-
 		return new Promise(resolve => {
-			setInterval(() => {
-				if (timer !== 0) {
-					document.getElementById('big-numbers').innerHTML = --timer
-				} else {
-					clearInterval()
-					resolve()
-				}
-			}, 1000)
-
+		// Use JavaScript's built-in setInterval method to get race info every 500ms
+		const raceInterval = setInterval(async() => {
+	  
+		  try {
+			let res = await getRace(raceID);
+			if (res.status === 'in-progress'){
+				// If the race info status property is "in-progress", update the leaderboard by calling:
+				  renderAt('#leaderBoard', raceProgress(res.positions));
+			} else {
+				  // If the race info status property is "finished", run the following:
+				  clearInterval(raceInterval); // to stop the interval from repeating
+				  renderAt('#race', resultsView(res.positions)); // to render the results view
+				  resolve(res); // resolve the promise
+			}
+		  } catch (error){
+			console.log(`runRace error: ${error}`);
+		  }
+  
+		  }, 500);
 		})
 	} catch(error) {
-		console.log(error);
+		// Remember to add error handling for the Promise
+	  console.log(`runRace error: ${error}`);
 	}
-}
-
-function handleSelectPodRacer(target) {
-	// Remove class selected from all racer options
-	const selected = document.querySelector('#racers .selected');
-	if(selected) {
-		selected.classList.remove('selected');
-	}
-
-	// add class selected to current target
-	target.classList.add('selected')
-
-	store.player = target
-
-}
-
-function handleSelectTrack(target) {
-	// Remove class selected from all track options
-	const selected = document.querySelector('#tracks .selected');
-	if(selected) {
-		selected.classList.remove('selected');
-	}
-
-	// Add class selected to current target
-	target.classList.add('selected');
-
-	// Save the selected track id to the store
-	store.track_id = parseInt(target.id);
-}
-
-function handleAccelerate() {
-	accelerate(store.race_id)
-		.then(() => console.log('accelerated'))
-		.catch(() => console.log('could not accelerate'))
-}
+  }
+  
+  // Async function to run the countdown before the race starts
+  async function runCountdown() {
+	  try {
+		  // Wait for the DOM to load
+		  await delay(1000)
+		  let timer = 3
+  
+		  return new Promise(resolve => {
+			  // Use JavaScript's built-in setInterval method to count down once per second
+		let stopInterval = setInterval(() => {
+				// Update the DOM to decrement the countdown for the user
+				document.getElementById('big-numbers').innerHTML = --timer
+  
+				// If the countdown is done, clear the interval, resolve the promise, and return
+		  if (timer <= 0) {
+			 console.log(`Timer: ${timer}`)
+			 clearInterval(stopInterval)
+			 resolve()
+		  }
+		}, 1000)
+		  })
+	  } catch(error) {
+		  console.log(`runCountdown error: ${error}`);
+	  }
+  }
+  
+  // Function to handle the acceleration button click
+  function handleAccelerate() {
+	try {
+		console.log("accelerate button clicked")
+		// Invoke the API call to accelerate
+	  accelerate(store.race_id)
+	 } catch (error) {
+	   console.log(`handleAccelerate error: ${error}`);
+	 }
+  }
 
 // HTML VIEWS ------------------------------------------------
 // Provided code - do not remove
